@@ -1,0 +1,6 @@
+{
+  "name": "Ayo PMRku - Sistem Informasi & Buku Induk Digital PMR",
+  "description": "Sistem Informasi & Manajemen Buku Induk Digital Palang Merah Remaja (PMR Mula, Madya, Wira) dengan KTA Digital, Presensi Selfie, Modul PMI, dan Uji SKK.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

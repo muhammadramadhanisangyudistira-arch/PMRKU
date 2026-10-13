@@ -1,0 +1,212 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile for PMR members, coaches, and administrators",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "fullName": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "coach", "member"] },
+        "username": { "type": "string" },
+        "password": { "type": "string" },
+        "className": { "type": "string" },
+        "gender": { "type": "string", "enum": ["L", "P"] },
+        "birthPlace": { "type": "string" },
+        "birthDate": { "type": "string" },
+        "phone": { "type": "string" },
+        "address": { "type": "string" },
+        "photoUrl": { "type": "string" },
+        "positionOrLevel": { "type": "string" },
+        "nis": { "type": "string" },
+        "emergencyContact": { "type": "string" },
+        "joinedDate": { "type": "string" }
+      },
+      "required": ["id", "fullName", "role", "username"]
+    },
+    "SchoolSettings": {
+      "title": "SchoolSettings",
+      "description": "Configuration and identity for the school PMR unit",
+      "type": "object",
+      "properties": {
+        "schoolName": { "type": "string" },
+        "unitName": { "type": "string" },
+        "schoolLevel": { "type": "string", "enum": ["mula", "madya", "wira"] },
+        "address": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "principalName": { "type": "string" },
+        "principalNip": { "type": "string" },
+        "coachName": { "type": "string" },
+        "coachNip": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "pmrLogoUrl": { "type": "string" },
+        "signatureStampUrl": { "type": "string" }
+      },
+      "required": ["schoolName", "unitName"]
+    },
+    "AttendanceSession": {
+      "title": "AttendanceSession",
+      "description": "PMR training or activity session",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "date": { "type": "string" },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" },
+        "type": { "type": "string" },
+        "qrSecret": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "notes": { "type": "string" }
+      },
+      "required": ["id", "title", "date", "isActive"]
+    },
+    "AttendanceRecord": {
+      "title": "AttendanceRecord",
+      "description": "Attendance log for a student or coach in a session",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "sessionId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "role": { "type": "string" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "status": { "type": "string", "enum": ["Hadir", "Izin", "Sakit", "Alpa"] },
+        "type": { "type": "string" },
+        "selfieUrl": { "type": "string" }
+      },
+      "required": ["id", "sessionId", "userId", "userName", "status"]
+    },
+    "LearningModule": {
+      "title": "LearningModule",
+      "description": "Core 7 PMI education and training modules",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "category": { "type": "string" },
+        "content": { "type": "string" },
+        "fileUrl": { "type": "string" },
+        "fileName": { "type": "string" },
+        "author": { "type": "string" },
+        "uploadDate": { "type": "string" },
+        "summary": { "type": "string" }
+      },
+      "required": ["id", "title", "category", "content"]
+    },
+    "Assignment": {
+      "title": "Assignment",
+      "description": "Quizzes or practical tasks assigned to members",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "category": { "type": "string" },
+        "type": { "type": "string", "enum": ["pilgan", "praktik"] },
+        "description": { "type": "string" },
+        "deadline": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "createdDate": { "type": "string" },
+        "passingScore": { "type": "number" },
+        "practicalInstructions": { "type": "string" }
+      },
+      "required": ["id", "title", "type"]
+    },
+    "Submission": {
+      "title": "Submission",
+      "description": "Student submission of quizzes or practical tasks",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "taskId": { "type": "string" },
+        "userId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "score": { "type": "number" },
+        "feedback": { "type": "string" },
+        "submittedDate": { "type": "string" },
+        "fileUrl": { "type": "string" },
+        "fileName": { "type": "string" },
+        "notes": { "type": "string" },
+        "status": { "type": "string", "enum": ["Pending", "Dinilai", "Revisi"] },
+        "totalQuestions": { "type": "number" },
+        "correctCount": { "type": "number" }
+      },
+      "required": ["id", "taskId", "userId", "studentName", "status"]
+    },
+    "SkillRequirement": {
+      "title": "SkillRequirement",
+      "description": "7 SKK (Syarat Kecakapan Khusus) standards",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "level": { "type": "string" },
+        "category": { "type": "string" },
+        "description": { "type": "string" },
+        "badgeIcon": { "type": "string" },
+        "badgeColor": { "type": "string" }
+      },
+      "required": ["id", "name", "category"]
+    },
+    "SkillRequest": {
+      "title": "SkillRequest",
+      "description": "Member request for SKK verification and badge award",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "requirementId": { "type": "string" },
+        "requirementName": { "type": "string" },
+        "status": { "type": "string", "enum": ["Pending", "Approved", "Rejected"] },
+        "score": { "type": "number" },
+        "notes": { "type": "string" },
+        "requestedDate": { "type": "string" },
+        "approvedDate": { "type": "string" },
+        "verifiedBy": { "type": "string" }
+      },
+      "required": ["id", "userId", "requirementId", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "User" },
+      "description": "Collection of all registered users"
+    },
+    "/settings/school": {
+      "schema": { "$ref": "SchoolSettings" },
+      "description": "Single document holding unit and school settings"
+    },
+    "/attendance_sessions/{sessionId}": {
+      "schema": { "$ref": "AttendanceSession" },
+      "description": "Collection of training sessions"
+    },
+    "/attendance_records/{recordId}": {
+      "schema": { "$ref": "AttendanceRecord" },
+      "description": "Collection of attendance check-ins"
+    },
+    "/modules/{moduleId}": {
+      "schema": { "$ref": "LearningModule" },
+      "description": "Collection of 7 PMI learning modules"
+    },
+    "/assignments/{assignmentId}": {
+      "schema": { "$ref": "Assignment" },
+      "description": "Collection of quizzes and tasks"
+    },
+    "/submissions/{submissionId}": {
+      "schema": { "$ref": "Submission" },
+      "description": "Collection of student task submissions"
+    },
+    "/skill_requirements/{requirementId}": {
+      "schema": { "$ref": "SkillRequirement" },
+      "description": "Collection of 7 SKK standards"
+    },
+    "/skill_requests/{requestId}": {
+      "schema": { "$ref": "SkillRequest" },
+      "description": "Collection of SKK examination requests"
+    }
+  }
+}
