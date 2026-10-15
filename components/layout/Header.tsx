@@ -7,7 +7,6 @@ import {
   ChevronDown,
   LogOut,
   Users,
-  Cloud,
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -75,14 +74,6 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Right Action Controls */}
         <div className="flex items-center gap-2 sm:gap-4">
-          {/* Cloud Database Online Status */}
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <Cloud className="w-3.5 h-3.5 text-emerald-600" />
-            <span className="hidden sm:inline">Database Online</span>
-            <span className="sm:hidden">Online</span>
-          </div>
-
           {/* User Profile Block */}
           <div className="flex items-center gap-3">
             <div className="text-right hidden sm:block">

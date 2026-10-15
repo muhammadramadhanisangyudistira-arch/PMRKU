@@ -10,8 +10,11 @@ import {
   setCurrentUser,
   logoutUser,
 } from '@/lib/storage';
-import { testFirestoreConnection } from '@/lib/firebase';
-import { fetchCloudDatabase, syncFullDatabaseToCloud } from '@/lib/firebase-service';
+import {
+  fetchDatabaseFromSupabase,
+  syncDatabaseToSupabase,
+  getSupabaseConfig,
+} from '@/lib/supabase';
 import { Header } from '@/components/layout/Header';
 import { Sidebar } from '@/components/layout/Sidebar';
 
@@ -70,14 +73,18 @@ export default function AyoPmrkuHome() {
       setCurrentUserState(null);
       logoutUser();
 
-      // Sinkronisasi dengan Database Cloud Firestore Online
-      testFirestoreConnection().then(async () => {
-        const cloudData = await fetchCloudDatabase();
-        if (cloudData) {
-          setDb(cloudData);
-          saveDatabase(cloudData);
-        }
-      });
+      // Sinkronisasi data dari Supabase jika kunci API telah dipasang di Vercel/Local
+      const config = getSupabaseConfig();
+      if (config.url && config.anonKey) {
+        fetchDatabaseFromSupabase().then((res) => {
+          if (res.success && res.data) {
+            setDb(res.data);
+            saveDatabase(res.data);
+          }
+        }).catch((err) => {
+          console.warn('Supabase initial fetch info:', err);
+        });
+      }
     }, 0);
 
     return () => clearTimeout(timer);
@@ -86,8 +93,14 @@ export default function AyoPmrkuHome() {
   const handleUpdateDb = (newDb: DatabaseState) => {
     setDb(newDb);
     saveDatabase(newDb);
-    // Asynchronous background sync ke Cloud Firestore
-    syncFullDatabaseToCloud(newDb);
+
+    // Kirim pembaruan ke Supabase di latar belakang jika online
+    const config = getSupabaseConfig();
+    if (config.url && config.anonKey) {
+      syncDatabaseToSupabase(newDb).catch((err) => {
+        console.warn('Supabase background sync info:', err);
+      });
+    }
 
     // Update currentUser if modified
     if (currentUserState) {

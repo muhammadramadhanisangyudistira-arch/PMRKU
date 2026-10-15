@@ -185,7 +185,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ db, onLogin }) => {
               <h1 className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tight leading-none">
                 Ayo <span className="text-rose-600">PMRku</span>
               </h1>
-              <p className="text-sm sm:text-base font-semibold text-slate-600 max-w-lg leading-relaxed">
+              <p className="text-sm sm:text-base font-semibold text-slate-600 max-w-lg leading-relaxed ml-[220px] pl-[1px]">
                 Sistem Manajemen & Buku Induk Digital Ekstrakurikuler Palang Merah Remaja terintegrasi dengan Kartu Anggota (KTA), Presensi Selfie, Modul PMI, Penugasan & Uji SKK.
               </p>
             </div>

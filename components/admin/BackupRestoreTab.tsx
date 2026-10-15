@@ -20,6 +20,14 @@ import {
   resetDatabase,
 } from '@/lib/storage';
 import {
+  getSupabaseConfig,
+  saveSupabaseConfig,
+  testSupabaseConnection,
+  fetchDatabaseFromSupabase,
+  syncDatabaseToSupabase,
+  clearSupabaseConfig,
+} from '@/lib/supabase';
+import {
   Database,
   Download,
   Upload,
@@ -45,6 +53,13 @@ import {
   Copy,
   FolderArchive,
   FileText,
+  Globe,
+  Key,
+  ExternalLink,
+  ShieldCheck,
+  CloudUpload,
+  CloudDownload,
+  Terminal,
 } from 'lucide-react';
 
 interface BackupRestoreTabProps {
@@ -57,8 +72,18 @@ export const BackupRestoreTab: React.FC<BackupRestoreTabProps> = ({
   onUpdateDb,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<
-    'backup' | 'restore' | 'snapshots' | 'danger'
+    'backup' | 'restore' | 'snapshots' | 'supabase' | 'danger'
   >('backup');
+
+  // Supabase State
+  const [supabaseUrl, setSupabaseUrl] = useState(() => getSupabaseConfig().url);
+  const [supabaseAnonKey, setSupabaseAnonKey] = useState(() => getSupabaseConfig().anonKey);
+  const [isTestingSupabase, setIsTestingSupabase] = useState(false);
+  const [supabaseStatusMsg, setSupabaseStatusMsg] = useState<{ success: boolean; text: string } | null>(null);
+  const [isSyncingToSupabase, setIsSyncingToSupabase] = useState(false);
+  const [isFetchingFromSupabase, setIsFetchingFromSupabase] = useState(false);
+  const [isCopiedSql, setIsCopiedSql] = useState(false);
+  const [isCopiedVercelEnv, setIsCopiedVercelEnv] = useState(false);
 
   // Metrics
   const metrics = useMemo(() => getStorageMetrics(db), [db]);
@@ -89,6 +114,245 @@ export const BackupRestoreTab: React.FC<BackupRestoreTabProps> = ({
   const [autoBackupBeforeReset, setAutoBackupBeforeReset] = useState(true);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleTestSupabase = async () => {
+    setIsTestingSupabase(true);
+    setSupabaseStatusMsg(null);
+    saveSupabaseConfig(supabaseUrl, supabaseAnonKey);
+    const res = await testSupabaseConnection(supabaseUrl, supabaseAnonKey);
+    setIsTestingSupabase(false);
+    setSupabaseStatusMsg({ success: res.success, text: res.message });
+    if (res.success) {
+      showSuccess('Koneksi ke Supabase berhasil diverifikasi!');
+    }
+  };
+
+  const handleSyncToSupabase = async () => {
+    if (!supabaseUrl || !supabaseAnonKey) {
+      setSupabaseStatusMsg({ success: false, text: 'Mohon isi URL dan Anon Key terlebih dahulu.' });
+      return;
+    }
+    saveSupabaseConfig(supabaseUrl, supabaseAnonKey);
+    setIsSyncingToSupabase(true);
+    const res = await syncDatabaseToSupabase(db);
+    setIsSyncingToSupabase(false);
+    setSupabaseStatusMsg({ success: res.success, text: res.message });
+    if (res.success) {
+      showSuccess('Semua data lokal berhasil diunggah ke Supabase!');
+    }
+  };
+
+  const handleFetchFromSupabase = async () => {
+    if (!supabaseUrl || !supabaseAnonKey) {
+      setSupabaseStatusMsg({ success: false, text: 'Mohon isi URL dan Anon Key terlebih dahulu.' });
+      return;
+    }
+    saveSupabaseConfig(supabaseUrl, supabaseAnonKey);
+    setIsFetchingFromSupabase(true);
+    const res = await fetchDatabaseFromSupabase();
+    setIsFetchingFromSupabase(false);
+    setSupabaseStatusMsg({ success: res.success, text: res.message });
+    if (res.success && res.data) {
+      onUpdateDb(res.data);
+      showSuccess('Data terbaru berhasil ditarik dari Supabase!');
+    }
+  };
+
+  const handleClearSupabase = () => {
+    clearSupabaseConfig();
+    setSupabaseUrl('');
+    setSupabaseAnonKey('');
+    setSupabaseStatusMsg({ success: true, text: 'Kredensial Supabase lokal telah dibersihkan.' });
+    showSuccess('Konfigurasi Supabase telah dihapus dari perangkat ini.');
+  };
+
+  const handleCopySql = () => {
+    const fullSql = `-- File: supabase-schema.sql
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+CREATE TABLE IF NOT EXISTS public.school_settings (
+    id INT PRIMARY KEY DEFAULT 1,
+    school_name TEXT NOT NULL DEFAULT 'MTs Marf''uah Palembang',
+    unit_name TEXT NOT NULL DEFAULT 'PMR Unit 012 - Pangkalan MTs Marf''uah Palembang',
+    school_level TEXT NOT NULL DEFAULT 'madya',
+    address TEXT DEFAULT 'Jl. Talang keramat, lrg.kerta, Kota Palembang',
+    phone TEXT DEFAULT '08974453505',
+    email TEXT DEFAULT 'pmr.mtsmarfuah@gmail.com',
+    principal_name TEXT DEFAULT 'RIRIA RABENA, S.H',
+    principal_nip TEXT DEFAULT '19740512 200501 1 004',
+    coach_name TEXT DEFAULT 'Muhammad Ramadhani, S.Pd',
+    coach_nip TEXT DEFAULT '19880921 201503 1 002',
+    logo_url TEXT,
+    pmr_logo_url TEXT,
+    signature_stamp_url TEXT,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT single_row CHECK (id = 1)
+);
+
+CREATE TABLE IF NOT EXISTS public.users (
+    id TEXT PRIMARY KEY,
+    full_name TEXT NOT NULL,
+    role TEXT NOT NULL CHECK (role IN ('admin', 'coach', 'member')),
+    username TEXT NOT NULL UNIQUE,
+    password TEXT NOT NULL DEFAULT 'pmr123',
+    class_name TEXT DEFAULT '',
+    gender TEXT CHECK (gender IN ('L', 'P')),
+    birth_place TEXT DEFAULT '',
+    birth_date TEXT DEFAULT '',
+    phone TEXT DEFAULT '',
+    address TEXT DEFAULT '',
+    photo_url TEXT DEFAULT '',
+    position_or_level TEXT DEFAULT 'PMR Madya',
+    nis TEXT DEFAULT '',
+    emergency_contact TEXT DEFAULT '',
+    joined_date TEXT DEFAULT '',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.attendance_sessions (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    date TEXT NOT NULL,
+    start_time TEXT NOT NULL,
+    end_time TEXT NOT NULL,
+    type TEXT NOT NULL DEFAULT 'Rutin',
+    qr_secret TEXT NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    notes TEXT DEFAULT '',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.attendance_records (
+    id TEXT PRIMARY KEY,
+    session_id TEXT REFERENCES public.attendance_sessions(id) ON DELETE CASCADE,
+    user_id TEXT REFERENCES public.users(id) ON DELETE CASCADE,
+    user_name TEXT NOT NULL,
+    role TEXT NOT NULL,
+    date TEXT NOT NULL,
+    time TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('Hadir', 'Izin', 'Sakit', 'Alpa')),
+    type TEXT NOT NULL CHECK (type IN ('Checklist', 'QR Code', 'Selfie Mandiri')),
+    selfie_url TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.modules (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    category TEXT NOT NULL,
+    content TEXT NOT NULL,
+    file_url TEXT,
+    file_name TEXT,
+    author TEXT NOT NULL,
+    upload_date TEXT NOT NULL,
+    summary TEXT DEFAULT '',
+    images JSONB DEFAULT '[]'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.assignments (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    category TEXT NOT NULL,
+    type TEXT NOT NULL CHECK (type IN ('pilgan', 'praktik')),
+    description TEXT NOT NULL,
+    deadline TEXT NOT NULL,
+    created_by TEXT NOT NULL,
+    created_date TEXT NOT NULL,
+    questions JSONB DEFAULT '[]'::jsonb,
+    passing_score INT DEFAULT 70,
+    practical_instructions TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.submissions (
+    id TEXT PRIMARY KEY,
+    task_id TEXT REFERENCES public.assignments(id) ON DELETE CASCADE,
+    user_id TEXT REFERENCES public.users(id) ON DELETE CASCADE,
+    student_name TEXT NOT NULL,
+    score NUMERIC(5,2),
+    feedback TEXT DEFAULT '',
+    submitted_date TEXT NOT NULL,
+    file_url TEXT DEFAULT '',
+    file_name TEXT,
+    notes TEXT DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'Pending' CHECK (status IN ('Pending', 'Dinilai', 'Revisi')),
+    answers JSONB DEFAULT '{}'::jsonb,
+    total_questions INT DEFAULT 0,
+    correct_count INT DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.skill_requirements (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    level TEXT NOT NULL,
+    category TEXT NOT NULL,
+    description TEXT NOT NULL,
+    standards JSONB DEFAULT '[]'::jsonb,
+    badge_icon TEXT NOT NULL,
+    badge_color TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.skill_requests (
+    id TEXT PRIMARY KEY,
+    user_id TEXT REFERENCES public.users(id) ON DELETE CASCADE,
+    student_name TEXT NOT NULL,
+    requirement_id TEXT REFERENCES public.skill_requirements(id) ON DELETE CASCADE,
+    requirement_name TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'Pending' CHECK (status IN ('Pending', 'Approved', 'Rejected')),
+    score NUMERIC(5,2),
+    examiner_notes TEXT DEFAULT '',
+    requested_date TEXT NOT NULL,
+    validated_by TEXT,
+    proof_file_url TEXT DEFAULT '',
+    report_text TEXT DEFAULT '',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.school_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.attendance_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.attendance_records ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.modules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.assignments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.submissions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.skill_requirements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.skill_requests ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Public access for school_settings" ON public.school_settings FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access for users" ON public.users FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access for attendance_sessions" ON public.attendance_sessions FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access for attendance_records" ON public.attendance_records FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access for modules" ON public.modules FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access for assignments" ON public.assignments FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access for submissions" ON public.submissions FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access for skill_requirements" ON public.skill_requirements FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access for skill_requests" ON public.skill_requests FOR ALL USING (true) WITH CHECK (true);
+`;
+    navigator.clipboard.writeText(fullSql);
+    setIsCopiedSql(true);
+    setTimeout(() => setIsCopiedSql(false), 3000);
+    showSuccess('Skrip SQL lengkap untuk Supabase berhasil disalin!');
+  };
+
+  const handleCopyVercelEnv = () => {
+    const envText = `NEXT_PUBLIC_SUPABASE_URL=${supabaseUrl || 'https://your-project.supabase.co'}
+NEXT_PUBLIC_SUPABASE_ANON_KEY=${supabaseAnonKey || 'your-anon-key'}`;
+    navigator.clipboard.writeText(envText);
+    setIsCopiedVercelEnv(true);
+    setTimeout(() => setIsCopiedVercelEnv(false), 3000);
+    showSuccess('Environment variables untuk Vercel berhasil disalin!');
+  };
 
   const showSuccess = (msg: string) => {
     setActionSuccessMsg(msg);
@@ -470,6 +734,21 @@ export const BackupRestoreTab: React.FC<BackupRestoreTabProps> = ({
         >
           <Clock className="w-4 h-4" />
           <span>Snapshot Lokal ({snapshots.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab('supabase')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-black transition-all cursor-pointer ${
+            activeSubTab === 'supabase'
+              ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
+              : 'bg-white text-emerald-700 hover:bg-emerald-50 border border-emerald-200'
+          }`}
+        >
+          <Globe className="w-4 h-4 text-emerald-500" />
+          <span>Supabase & Deploy Vercel</span>
+          <span className="px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[9px] font-black uppercase">
+            Online
+          </span>
         </button>
 
         <button
@@ -1048,6 +1327,332 @@ export const BackupRestoreTab: React.FC<BackupRestoreTabProps> = ({
                   Reset Database...
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 4. SUPABASE & DEPLOY VERCEL TAB                                           */}
+      {/* ========================================================================= */}
+      {activeSubTab === 'supabase' && (
+        <div className="space-y-6 animate-fade-in">
+          {/* Banner Pengantar Supabase & Vercel */}
+          <div className="bg-linear-to-r from-emerald-900 via-teal-900 to-slate-900 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
+            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div className="space-y-2 max-w-2xl">
+                <div className="flex items-center gap-2">
+                  <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-black uppercase tracking-wider border border-emerald-400/30 flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                    100% Bebas Tagihan (Free Tier)
+                  </span>
+                  <span className="px-2.5 py-0.5 rounded-full bg-white/10 text-slate-300 text-[10px] font-bold">
+                    PostgreSQL Cloud + Edge CDN
+                  </span>
+                </div>
+                <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white">
+                  Database Online Supabase & Deploy Vercel
+                </h2>
+                <p className="text-xs sm:text-sm text-emerald-100/80 leading-relaxed">
+                  Solusi ideal tanpa kendala billing Google Cloud. Database PostgreSQL Supabase menyimpan seluruh data anggota, presensi selfie, modul, dan kuis secara online, lalu web dideploy instan ke Vercel dengan domain gratis dan aman (SSL).
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row md:flex-col gap-2 shrink-0">
+                <button
+                  onClick={handleCopySql}
+                  className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Copy className="w-4 h-4" />
+                  <span>{isCopiedSql ? 'Tersalin!' : 'Salin Skrip SQL Schema'}</span>
+                </button>
+                <button
+                  onClick={handleCopyVercelEnv}
+                  className="px-4 py-2.5 bg-white/15 hover:bg-white/25 text-white font-bold text-xs rounded-xl backdrop-blur-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Key className="w-4 h-4 text-emerald-300" />
+                  <span>{isCopiedVercelEnv ? 'Env Tersalin!' : 'Salin Kunci Env Vercel'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Grid: Form Koneksi & Status */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Form Konfigurasi Kredensial */}
+            <div className="lg:col-span-7 bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-emerald-100 text-emerald-800 rounded-2xl">
+                    <Globe className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900">
+                      Konfigurasi Kunci API Supabase
+                    </h3>
+                    <p className="text-[11px] text-slate-500">
+                      Dapatkan dari Dashboard Supabase &gt; Project Settings &gt; Data API
+                    </p>
+                  </div>
+                </div>
+
+                {supabaseUrl && supabaseAnonKey ? (
+                  <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    Kunci Terpasang
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 text-[10px] font-black uppercase">
+                    Belum Dikonfigurasi
+                  </span>
+                )}
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Supabase Project URL (NEXT_PUBLIC_SUPABASE_URL)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={supabaseUrl}
+                      onChange={(e) => setSupabaseUrl(e.target.value)}
+                      placeholder="https://xxxxxxxxxxxxxxxxxxxx.supabase.co"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Supabase Anon / Public Key (NEXT_PUBLIC_SUPABASE_ANON_KEY)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="password"
+                      value={supabaseAnonKey}
+                      onChange={(e) => setSupabaseAnonKey(e.target.value)}
+                      placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS..."
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none transition-all"
+                    />
+                  </div>
+                </div>
+
+                {/* Feedback Message */}
+                {supabaseStatusMsg && (
+                  <div
+                    className={`p-3.5 rounded-2xl text-xs font-medium flex items-start gap-2.5 ${
+                      supabaseStatusMsg.success
+                        ? 'bg-emerald-50 text-emerald-900 border border-emerald-200'
+                        : 'bg-red-50 text-red-900 border border-red-200'
+                    }`}
+                  >
+                    {supabaseStatusMsg.success ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    ) : (
+                      <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                    )}
+                    <span className="leading-relaxed">{supabaseStatusMsg.text}</span>
+                  </div>
+                )}
+
+                {/* Tombol Aksi */}
+                <div className="flex flex-wrap items-center gap-2.5 pt-2">
+                  <button
+                    onClick={handleTestSupabase}
+                    disabled={isTestingSupabase || !supabaseUrl || !supabaseAnonKey}
+                    className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-2 cursor-pointer"
+                  >
+                    {isTestingSupabase ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-400" />
+                        <span>Menguji...</span>
+                      </>
+                    ) : (
+                      <>
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Simpan &amp; Uji Koneksi</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={handleSyncToSupabase}
+                    disabled={isSyncingToSupabase || !supabaseUrl || !supabaseAnonKey}
+                    className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-sm transition-all flex items-center gap-2 cursor-pointer"
+                  >
+                    {isSyncingToSupabase ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Mengunggah...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CloudUpload className="w-3.5 h-3.5" />
+                        <span>Kirim Data Lokal ke Supabase</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={handleFetchFromSupabase}
+                    disabled={isFetchingFromSupabase || !supabaseUrl || !supabaseAnonKey}
+                    className="px-4 py-2.5 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 disabled:opacity-50 font-bold text-xs rounded-xl transition-all flex items-center gap-2 cursor-pointer"
+                  >
+                    {isFetchingFromSupabase ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin text-teal-700" />
+                        <span>Mengunduh...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CloudDownload className="w-3.5 h-3.5 text-teal-700" />
+                        <span>Tarik Data Supabase</span>
+                      </>
+                    )}
+                  </button>
+
+                  {supabaseUrl && (
+                    <button
+                      onClick={handleClearSupabase}
+                      className="px-3 py-2.5 text-slate-500 hover:text-red-600 text-xs font-bold transition-all ml-auto cursor-pointer"
+                    >
+                      Putuskan
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Guide Card */}
+            <div className="lg:col-span-5 bg-linear-to-b from-slate-50 to-white rounded-3xl p-6 border border-slate-200 shadow-sm flex flex-col justify-between space-y-4">
+              <div className="space-y-3">
+                <div className="flex items-center gap-2.5 text-slate-900 font-black text-sm">
+                  <Terminal className="w-4 h-4 text-emerald-600" />
+                  <span>Cara Cepat Inisialisasi Supabase</span>
+                </div>
+                <ol className="space-y-2.5 text-xs text-slate-600 list-decimal list-inside leading-relaxed">
+                  <li>
+                    Buka <a href="https://supabase.com" target="_blank" rel="noreferrer" className="text-emerald-700 font-bold underline inline-flex items-center gap-0.5">supabase.com <ExternalLink className="w-3 h-3" /></a> dan buat project baru (Region Singapore, Free Plan).
+                  </li>
+                  <li>
+                    Klik menu <strong>SQL Editor</strong> di bilah kiri Supabase, buat <em>New Query</em>.
+                  </li>
+                  <li>
+                    Klik tombol <strong>Salin Skrip SQL Schema</strong> di bawah ini, lalu tempel di SQL Editor dan tekan <strong>Run</strong>.
+                  </li>
+                  <li>
+                    Buka menu <strong>Project Settings &gt; Data API</strong>, salin URL dan Anon Key ke kolom di samping.
+                  </li>
+                </ol>
+              </div>
+
+              <div className="p-3.5 bg-emerald-50 rounded-2xl border border-emerald-200 text-emerald-950 text-xs space-y-2">
+                <div className="font-bold flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Berkas sql telah disediakan di root:</span>
+                </div>
+                <p className="text-[11px] font-mono bg-white px-2.5 py-1.5 rounded-lg border border-emerald-200 text-slate-800">
+                  supabase-schema.sql
+                </p>
+                <div className="flex gap-2 pt-1">
+                  <button
+                    onClick={handleCopySql}
+                    className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer"
+                  >
+                    <Copy className="w-3 h-3" />
+                    <span>{isCopiedSql ? 'Tersalin!' : 'Salin SQL Lengkap'}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Panduan 4 Langkah Deploy ke Vercel */}
+          <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-6">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div>
+                <h3 className="text-base font-black text-slate-900">
+                  Langkah-Langkah Deploy Web ke Vercel (100% Gratis)
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Menjadikan aplikasi PMR Anda dapat diakses oleh seluruh anggota dan pembina di internet
+                </p>
+              </div>
+              <a
+                href="https://vercel.com"
+                target="_blank"
+                rel="noreferrer"
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <span>Buka Vercel</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {/* Step 1 */}
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+                <div className="w-7 h-7 bg-slate-900 text-white rounded-xl flex items-center justify-center text-xs font-black">
+                  1
+                </div>
+                <h4 className="font-black text-xs text-slate-900">Push ke GitHub</h4>
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  Unggah folder proyek ini ke repositori akun GitHub pribadi Anda menggunakan Git.
+                </p>
+              </div>
+
+              {/* Step 2 */}
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+                <div className="w-7 h-7 bg-slate-900 text-white rounded-xl flex items-center justify-center text-xs font-black">
+                  2
+                </div>
+                <h4 className="font-black text-xs text-slate-900">Import di Vercel</h4>
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  Login ke vercel.com dengan akun GitHub, klik <em>Add New &gt; Project</em>, lalu pilih repo tadi.
+                </p>
+              </div>
+
+              {/* Step 3 */}
+              <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 space-y-2">
+                <div className="w-7 h-7 bg-emerald-600 text-white rounded-xl flex items-center justify-center text-xs font-black">
+                  3
+                </div>
+                <h4 className="font-black text-xs text-emerald-950">Set Environment Variables</h4>
+                <p className="text-[11px] text-emerald-800 leading-relaxed">
+                  Tambahkan <code className="font-mono bg-white px-1 py-0.5 rounded text-[10px]">NEXT_PUBLIC_SUPABASE_URL</code> dan <code className="font-mono bg-white px-1 py-0.5 rounded text-[10px]">NEXT_PUBLIC_SUPABASE_ANON_KEY</code>.
+                </p>
+              </div>
+
+              {/* Step 4 */}
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+                <div className="w-7 h-7 bg-slate-900 text-white rounded-xl flex items-center justify-center text-xs font-black">
+                  4
+                </div>
+                <h4 className="font-black text-xs text-slate-900">Deploy &amp; Selesai</h4>
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  Klik <em>Deploy</em>. Dalam 1-2 menit, web Anda online di domain <code className="font-mono text-[10px]">.vercel.app</code> dengan sertifikat SSL otomatis!
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-900 text-white rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <FileText className="w-5 h-5 text-emerald-400 shrink-0" />
+                <div>
+                  <h5 className="font-bold text-xs text-white">Panduan Tertulis Lengkap: DEPLOY_SUPABASE_VERCEL.md</h5>
+                  <p className="text-[11px] text-slate-400">Tersedia di folder proyek dengan instruksi baris perintah lengkap.</p>
+                </div>
+              </div>
+              <button
+                onClick={handleCopyVercelEnv}
+                className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                <span>Salin Pasangan Variabel Vercel</span>
+              </button>
             </div>
           </div>
         </div>
